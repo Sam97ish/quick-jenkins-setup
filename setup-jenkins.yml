@@ -1,0 +1,65 @@
+---
+- hosts: all
+  become: true
+
+  tasks:
+    - name: Install Docker dependencies
+      apt:
+        name: apt-transport-https, ca-certificates, curl, gnupg-agent, software-properties-common
+        state: present
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Update package cache
+      apt:
+        update_cache: yes
+
+    - name: Install Docker
+      apt:
+        name: docker-ce
+        state: present
+
+    - name: Install Git
+      apt:
+        name: git
+        state: present
+    
+    - name: Download Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/latest/download/docker-compose-Linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+      register: download_result
+      until: download_result is succeeded
+      retries: 3
+      delay: 5
+
+    - name: Add Docker Compose to PATH
+      shell: echo 'export PATH="$PATH:/usr/local/bin"' >> ~/.bashrc
+      
+    - name: Create Docker group
+      become: true
+      group:
+        name: docker
+        state: present
+
+    - name: Add vagrant user to Docker group
+      become: true
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+    
+    - name: Build and Run Jenkins using Docker Compose - WILL TAKE SEVERAL MINUTES
+      become: yes
+      shell: docker-compose -f docker-compose.yaml build --no-cache && docker-compose -f docker-compose.yaml up -d
+      args:
+        chdir: /home/vagrant
